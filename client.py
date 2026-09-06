@@ -15,7 +15,7 @@ class CounterfactualTestGenerator:
 
     BOUNDARY_INT = [0, 1, -1, 2**31 - 1, -2**31, 1000000]
     BOUNDARY_FLOAT = [0.0, -0.0, 1.0, -1.0, 1e-9, -1e-9, float("inf"), float("-inf")]
-    BOUNDARY_STR = ["", " ", "\n", "\t", "a" * 1000, "<script>alert(1)</script>", "null", "None", "{}\", "0"]
+    BOUNDARY_STR = ["", " ", "\n", "\t", "a" * 1000, "<script>alert(1)</script>", "null", "None", "{}", "0"]
     BOUNDARY_LIST = [[], [None], [0], list(range(100)), ["a", "b", "c"]]
     BOUNDARY_DICT = [{}, {"": ""}, {"key": None}, {"a": {"b": {"c": 1}}}]
 
@@ -30,34 +30,57 @@ class CounterfactualTestGenerator:
             return list(self.BOUNDARY_STR)
         elif t in ("list", "array"):
             return list(self.BOUNDARY_LIST)
-        elif t in ("dict", "object"):
+        elif t in ("dict", "object", "mapping"):
             return list(self.BOUNDARY_DICT)
         elif t in ("bool", "boolean"):
             return [True, False]
         else:
-            return [None, "", 0, [], {}]
+            return [None, "", 0]
 
-    def synthesize_test_suite(self, param_schema: Dict[str, str], max_tests: int = 10) -> List[Dict[str, Any]]:
+    def synthesize_test_suite(self, signature_schema: Dict[str, str], max_tests: int = 10) -> List[Dict[str, Any]]:
         """
-        Synthesize cross-product test suite across multiple parameter specifications.
+        Synthesize counterfactual test parameter dictionaries for a function signature.
+        e.g. signature_schema = {"amount": "float", "account_id": "str"}
         """
-        test_cases = []
-        param_names = list(param_schema.keys())
+        keys = list(signature_schema.keys())
+        if not keys:
+            return [{}]
 
-        # 1. Base default cases
-        default_case = {}
-        for p, t in param_schema.items():
-            candidates = self.generate_counterfactuals_for_type(t)
-            default_case[p] = candidates[0] if candidates else None
-        test_cases.append(default_case)
+        # Pick default nominal values
+        nominal = {}
+        for k, v in signature_schema.items():
+            t = v.lower().strip()
+            if t in ("int", "integer"):
+                nominal[k] = 10
+            elif t in ("float", "number"):
+                nominal[k] = 10.5
+            elif t in ("str", "string"):
+                nominal[k] = "test_val"
+            elif t in ("list", "array"):
+                nominal[k] = ["item1"]
+            elif t in ("dict", "object"):
+                nominal[k] = {"key": "val"}
+            elif t in ("bool", "boolean"):
+                nominal[k] = True
+            else:
+                nominal[k] = None
 
-        # 2. Perturb each parameter independently
-        for p in param_names:
-            candidates = self.generate_counterfactuals_for_type(param_schema[p])
-            for val in candidates[:max_tests]:
-                case = dict(default_case)
-                case[p] = val
-                test_cases.append(case)
+        test_cases = [dict(nominal)]
+
+        # One-at-a-time counterfactual mutation
+        for k, type_name in signature_schema.items():
+            mutations = self.generate_counterfactuals_for_type(type_name)
+            for m in mutations[:4]:
+                tc = dict(nominal)
+                tc[k] = m
+                test_cases.append(tc)
+
+        # Multi-variable boundary stress
+        stress_case = {}
+        for k, type_name in signature_schema.items():
+            candidates = self.generate_counterfactuals_for_type(type_name)
+            stress_case[k] = candidates[0] if candidates else None
+        test_cases.append(stress_case)
 
         # Deduplicate
         seen = []
