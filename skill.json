@@ -1,0 +1,15 @@
+{
+  "name": "genpark-counterfactual-execution-test-generator-skill",
+  "version": "1.0.0",
+  "description": "Synthesizes counterfactual unit test inputs to reliably reproduce runtime tool failures.",
+  "author": "GenPark AI",
+  "license": "Apache-2.0",
+  "dependencies": [],
+  "keywords": [
+    "counterfactual-testing",
+    "fuzzing",
+    "edge-cases",
+    "property-testing",
+    "test-synthesis"
+  ]
+}
